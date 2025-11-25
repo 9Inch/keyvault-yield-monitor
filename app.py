@@ -104,7 +104,7 @@ update_clock()
 st_autorefresh(interval=60_000, key="clock")  # อัพเดททุก 1 นาที
 
 # =============== ORACLE CONNECTION ===============
-oracledb.init_oracle_client(lib_dir=r"C:\oracle\ODAC64\instantclient")
+oracledb.init_oracle_client(config_dir=None, driver_name="Oracle Client 19.11")
 
 @st.cache_resource(show_spinner=False)
 def init_connection(u, p):
