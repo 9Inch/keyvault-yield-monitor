@@ -1,0 +1,6 @@
+streamlit
+oracledb
+pandas
+altair
+streamlit-autorefresh
+requests
