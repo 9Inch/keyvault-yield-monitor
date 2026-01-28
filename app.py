@@ -1,4 +1,3 @@
-# KeyVault Yield Monitor - BMW M ULTIMATE EDITION (FINAL 100% COMPLETE - 25 NOV 2025)
 import streamlit as st
 import oracledb
 import pandas as pd
@@ -8,6 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 import requests
 import smtplib
 from email.message import EmailMessage
+import time
 
 # =============== PAGE CONFIG ===============
 st.set_page_config(
@@ -78,7 +78,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# =============== TITLE + CLOCK ===============
+# TITLE + CLOCK
 st.markdown(
     """<div style="text-align: center;">
     <h1 class="title-main">KeyVault Yield Monitor</h1>
@@ -101,10 +101,10 @@ def update_clock():
             </div>""", unsafe_allow_html=True
         )
 update_clock()
-st_autorefresh(interval=60_000, key="clock")  # อัพเดททุก 1 นาที
+st_autorefresh(interval=60_000, key="clock")
 
-# =============== ORACLE CONNECTION ===============
-#oracledb.init_oracle_client(config_dir=None, driver_name="Oracle Client 19.11")
+# CONNECTION
+oracledb.init_oracle_client(lib_dir=r"C:\oracle\ODAC64\instantclient")
 
 @st.cache_resource(show_spinner=False)
 def init_connection(u, p):
@@ -116,14 +116,14 @@ def run_query(_conn, q):
     try: return pd.read_sql(q, _conn)
     except: return pd.DataFrame()
 
-# =============== NOTIFICATION + EMAIL SETUP ===============
+# TG&MAIL SETUP
 TELEGRAM_TOKEN = "8209829432:AAHruz1iwFPYJMDqY12I8ygu4a_bcOIBBsU"
 TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 CHAT_IDS = ["1697324826", "-5097867015"]
 FROM_EMAIL = "CCET_CP1_SPQ@calcomp.co.th"
 
 if "email_recipients" not in st.session_state:
-    st.session_state.email_recipients = "apinut_n@calcomp.co.th"
+    st.session_state.email_recipients = "apinut_n@calcomp.co.th"  # default
 
 def send_telegram(m):
     if st.session_state.get("telegram_enabled", True):
@@ -131,7 +131,7 @@ def send_telegram(m):
             try: requests.post(TELEGRAM_URL, data={"chat_id": cid, "text": m, "parse_mode": "HTML"}, timeout=10)
             except: pass
 
-def send_email(sub, body):
+def send_email(sub, body, recipient=None):
     if st.session_state.get("email_enabled", True):
         recipients = [email.strip() for email in st.session_state.email_recipients.split(",") if email.strip()]
         if not recipients:
@@ -144,11 +144,11 @@ def send_email(sub, body):
         msg.add_alternative(body, subtype='html')
         try:
             smtplib.SMTP("mailpe.calcomp.co.th", 25, timeout=20).send_message(msg)
-            st.toast(f"Email sent to {len(recipients)} recipient(s)!", icon="Checkmark")
+            st.toast(f"Email sent to {len(recipients)} recipient(s)!", icon="✅")
         except Exception as e:
             st.error(f"Email failed: {e}")
 
-# =============== REPORT & ALERT (ส่งทุกชั่วโมงแค่ครั้งเดียว + Alert ไม่ซ้ำ) ===============
+# REPORT&ALERT
 def send_hourly_report(conn, now: datetime):
     shift_start = now.replace(hour=8, minute=0, second=0, microsecond=0)
     if now.hour < 8: shift_start -= timedelta(days=1)
@@ -195,14 +195,14 @@ def check_realtime_alert(conn):
             prev_yield = last_alert_time[key]['yield']
             alerted = last_alert_time[key]['alerted']
             if current_yield < 95 and not alerted:
-                send_telegram(f"""M REAL-TIME ALERT\nStation: {station}\nYield dropped to {current_yield:.2f}% (from {prev_yield:.2f}%)\nOK: {int(r.OK):,} pcs | {now:%H:%M}\nImmediate action required!""")
+                send_telegram(f"""REAL-TIME ALERT\nStation: {station}\nYield dropped to {current_yield:.2f}% (from {prev_yield:.2f}%)\nOK: {int(r.OK):,} pcs | {now:%H:%M}\nImmediate action required!""")
                 last_alert_time[key]['alerted'] = True
             if current_yield >= 95:
                 last_alert_time[key]['alerted'] = False
             last_alert_time[key]['yield'] = current_yield
     except: pass
 
-# =============== SIDEBAR (มี Setup Email + ใช้ Checkmark) ===============
+# SIDEBAR
 if "connected" not in st.session_state: st.session_state.connected = False
 if "last_report_hour" not in st.session_state: st.session_state.last_report_hour = -1
 
@@ -247,7 +247,7 @@ with st.sidebar:
 
     if st.button("Send Test Report", type="primary", use_container_width=True):
         send_hourly_report(st.session_state.conn, datetime.now())
-        st.toast("M Test report sent!", icon="Checkmark")
+        st.toast("Test report sent!", icon="✅")
 
     with st.expander("Setup Email Recipients", expanded=False):
         new_emails = st.text_area(
@@ -270,19 +270,19 @@ with st.sidebar:
 
     st.date_input("Production Date", value=datetime.now().date(), key="selected_date")
 
-# =============== MAIN DASHBOARD ===============
+# MAIN DASH
 if not st.session_state.connected:
     st.info("Please connect to database from sidebar.")
     st.stop()
 
-_ = st_autorefresh(interval=30_000, key="data_refresh")
+_ = st_autorefresh(interval=60_000, key="data_refresh")
 now = datetime.now()
 
-# ส่งรายงานทุกชั่วโมง :00 แค่ครั้งเดียว
+# REPORT
 if now.minute == 0 and now.second < 5 and st.session_state.last_report_hour != now.hour:
     send_hourly_report(st.session_state.conn, now)
     st.session_state.last_report_hour = now.hour
-    st.toast("M Hourly report sent!", icon="Checkmark")
+    st.toast("Hourly report sent!", icon="✅")
 
 check_realtime_alert(st.session_state.conn)
 
@@ -303,7 +303,7 @@ else:
     df = df.set_index('STATION')
     data = df[['YIELD_%', 'OK_PCS']].to_dict('index')
 
-    # =============== DETAIL PAGE (แก้ st.stop() แล้ว) ===============
+    # DETAIL SUP DASH
     if st.session_state.get("selected_station"):
         station = st.session_state.selected_station
         if st.button("Back to Dashboard"):
@@ -328,9 +328,9 @@ else:
             st.altair_chart(chart + points + low, use_container_width=True)
         else:
             st.warning("No hourly data available.")
-        st.stop()  # วางไว้ท้ายสุด → การ์ดไม่หาย!
+        st.stop()
 
-    # =============== CARD DISPLAY ===============
+    # CARD
     def get_card_gradient(y):
         if y is None or y == 0: return "linear-gradient(135deg, #1a202c, #2d3748)"
         if y >= 99.5: return "linear-gradient(135deg, #22c55e, #16a34a)"
@@ -357,6 +357,11 @@ else:
                 if st.button("View Detail", key=f"detail_{s}", use_container_width=True):
                     st.session_state.selected_station = s
                     st.rerun()
+    if 'last_data_refresh' not in st.session_state:
+        st.session_state.last_data_refresh = time.time()
+    if time.time() - st.session_state.last_data_refresh > 60:
+        st.session_state.last_data_refresh = time.time()
+        st.rerun()
 
 st.markdown("---")
 st.caption("© KeyVault Yield Monitor • Powered by APN_888")
