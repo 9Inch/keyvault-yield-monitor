@@ -8,6 +8,8 @@ import requests
 import smtplib
 from email.message import EmailMessage
 import time
+import platform
+import os
 
 # =============== PAGE CONFIG ===============
 st.set_page_config(
@@ -103,13 +105,33 @@ def update_clock():
 update_clock()
 st_autorefresh(interval=60_000, key="clock")
 
-# CONNECTION
-oracledb.init_oracle_client(lib_dir=r"C:\oracle\ODAC64\instantclient")
+# =============== ORACLE CLIENT INITIALIZATION (Windows/Cloud Compatible) ===============
+# ใช้ thick mode เฉพาะบน Windows ที่มี Oracle Instant Client
+if platform.system() == "Windows" and os.path.exists(r"C:\oracle\ODAC64\instantclient"):
+    try:
+        oracledb.init_oracle_client(lib_dir=r"C:\oracle\ODAC64\instantclient")
+        st.sidebar.info("🔧 Running in Thick Mode (Windows)")
+    except Exception as e:
+        st.sidebar.warning(f"⚠️ Thick mode failed, using Thin mode: {e}")
+        pass  # ถ้าเกิด error ให้ใช้ thin mode
+else:
+    # Linux/Cloud/Mac จะใช้ thin mode อัตโนมัติ (ไม่ต้องติดตั้ง Instant Client)
+    st.sidebar.info("☁️ Running in Thin Mode (Cloud/Linux)")
 
+# CONNECTION
 @st.cache_resource(show_spinner=False)
 def init_connection(u, p):
-    try: return oracledb.connect(user=u, password=p, host="10.51.130.182", port=1521, service_name="KVDB")
-    except Exception as e: st.error(f"Connection failed: {e}"); return None
+    try:
+        return oracledb.connect(
+            user=u,
+            password=p,
+            host="10.51.130.182",
+            port=1521,
+            service_name="KVDB"
+        )
+    except Exception as e:
+        st.error(f"Connection failed: {e}")
+        return None
 
 @st.cache_data(ttl=30)
 def run_query(_conn, q):
